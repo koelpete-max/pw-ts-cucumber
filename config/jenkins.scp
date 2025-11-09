@@ -8,51 +8,48 @@ pipeline {
   }
   options { timestamps() }
 
-  stages {
-    stage('Preflight') {
-      steps {
-          sh '''
-          set -euxo pipefail
-          echo "whoami: $(whoami)"
-          id -a
-          echo "PATH=$PATH"
-          ls -l /Users/freyrep/.docker/run/docker.sock || true
-          stat -f '%Su %Sp' /Users/freyrep/.docker/run/docker.sock || true
-
-          # W hich docker + version
-          command -v docker || true
-          # try daemon
-          docker version || true
-          '''
-      }
-    }
-
-    stage('Test in Playwright container') {
-      steps {
-        script {
+    stages {
+      stage('Preflight') {
+        steps {
             sh '''
-              set -euxo pipefail
+            set -euxo pipefail
+            echo "whoami: $(whoami)"
+            id -a
+            echo "PATH=$PATH"
+            ls -l /Users/freyrep/.docker/run/docker.sock || true
+            stat -f '%Su %Sp' /Users/freyrep/.docker/run/docker.sock || true
 
-              # pull once (optional)
-              docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
-
-              # run the job in the container, mounting your workspace
-              docker run --rm -u root:root \
-                -v "$PWD:/app" -w /app \
-                -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
-                -e TAGS="$TAGS" \
-                mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc '
-                  set -e
-                  npm ci
-                  npx playwright install --with-deps
-                  # if you added preci/postci hooks, they will run around ci:test automatically
-                  npm run ci:test
-                  npm run report || true
-                '
+            # W hich docker + version
+            command -v docker || true
+            # try daemon
+            docker version || true
             '''
-          }
         }
       }
+      stage('Test in Playwright container') {
+        steps {
+          sh '''
+            set -euxo pipefail
+
+            # pull once (optional)
+            docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
+
+            # run the job in the container, mounting your workspace
+            docker run --rm -u root:root \
+              -v "$PWD:/app" -w /app \
+              -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
+              -e TAGS="$TAGS" \
+              mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc '
+                set -e
+                npm ci
+                npx playwright install --with-deps
+                # if you added preci/postci hooks, they will run around ci:test automatically
+                npm run ci:test
+                npm run report || true
+              '
+          '''
+        }
+      }      
     }
 
     stage('Archive artifacts') {
