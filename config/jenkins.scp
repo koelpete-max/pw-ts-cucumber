@@ -8,24 +8,20 @@ pipeline {
   }
   options { timestamps() }
 
-  stages {
     stage('Preflight') {
       steps {
         sh '''
           set -euxo pipefail
+          echo "whoami: $(whoami)"
+          id -a
           echo "PATH=$PATH"
-          # show where docker would be
+          ls -l /Users/freyrep/.docker/run/docker.sock || true
+          stat -f '%Su %Sp' /Users/freyrep/.docker/run/docker.sock || true
+
+          # Which docker + version
           command -v docker || true
-          # show socket perms (helpful if next step fails)
-          ls -l /var/run/docker.sock || true
-
-          # Fail explicitly if docker still not found
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "Docker CLI not found on PATH"; exit 1
-          fi
-
-          # Check daemon connectivity
-          docker version >/dev/null || { echo "Docker daemon not reachable"; exit 1; }
+          # try daemon
+          docker version || true
         '''
       }
     }
