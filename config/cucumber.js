@@ -2,11 +2,11 @@ module.exports = {
   default: {
     requireModule: ["ts-node/register", "dotenv/config"],
     require: ["src/helper/init.ts", "src/**/*.ts"],
-    tags: process.env.npm_config_tags || "",
+    tags: process.env.TAGS || process.env.npm_config_tags || "",
     formatOptions: {
       snippetInterface: "async-await",
     },
-    paths: ["src/test/features/*.feature"],
+    paths: ["src/test/features/**/*.feature"],
     publishQuiet: true,
     dryRun: false,
     require: ["src/test/steps/*.ts", "src/hooks/di*.ts", "src/support/*.ts"],
