@@ -26,72 +26,71 @@ pipeline {
             '''
         }
       }
-      stage('Test in Playwright container') {
-        steps {
-          sh '''
-            set -euo pipefail
+stage('Test in Playwright container') {
+  steps {
+    sh '''
+      set -euo pipefail
 
-            echo "Host PWD: $PWD"
-            echo "Host workspace (top):"
-            ls -la
-            echo
+      echo "Host PWD: $PWD"
+      ls -la
 
-            # Pull once (safe if already present)
-            docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
+      docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
-            # Run the whole script inside container via HEREDOC to avoid quote-escaping issues
-            docker run --rm -u root:root \
-              -v "$PWD:/app" -w /app \
-              -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
-              -e TAGS="${TAGS-}" \
-              mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
-            set -euo pipefail
+      docker run --rm -u root:root \
+        -v "$PWD:/app" -w /app \
+        -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
+        -e TAGS="${TAGS-}" \
+        mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
+set -euo pipefail
 
-            echo "Container PWD: $(pwd)"
-            echo "DOTENV_CONFIG_PATH=${DOTENV_CONFIG_PATH-}"
-            echo "TAGS=${TAGS-}"
+echo "-- Container PWD: $(pwd)"
+mkdir -p test-results/screenshots test-results/videos logs
 
-            echo "Listing features under ./src/test/features:"
-            ls -R ./src/test/features || true
-            echo
+# PROBE: prove we can write into the mount
+date > test-results/.probe_container_wrote_here.txt
 
-            echo "Node/npm versions in container:"
-            node -v
-            npm -v
-            echo
+# Install + run (adjust report path if needed)
+npm ci
+npx playwright install --with-deps
 
-            # Install deps & browsers
-            npm ci
-            npx playwright install --with-deps
+# (Optional) one-time discovery logs
+ls -R ./src/test/features || true
+node -e "const c=require('./config/cucumber.js'); console.log('config.paths=',(c.default?.paths||c.paths)); console.log('config.tags=',(c.default?.tags||c.tags));"
 
-            # Show Cucumber config resolution
-            node -e "const c=require('./config/cucumber.js'); console.log('config.paths =', (c.default?.paths||c.paths)); console.log('config.tags =', (c.default?.tags||c.tags));"
+# Real run (respects TAGS/dotenv via config)
+npm run ci:test
 
-            # Prove discovery with a dry-run first (no tags) to debug patterns:
-            npx cucumber-js --config=config/cucumber.js --dry-run --format progress --verbose || true
-            echo
+# If your report is TS, ensure package.json has:
+#   "report": "npx ts-node src/helper/report.ts"
+npm run report || true
 
-            # Now run your normal CI test script (respects TAGS + dotenv)
-            npm run ci:test
+echo "-- Container listing test-results:"
+find test-results -maxdepth 3 -type f -print || true
 
-            # If your report script is TS, ensure package.json uses ts-node, e.g.:
-            #   "report": "npx ts-node src/helper/report.ts"
-            npm run report || true
-            BASH
-          '''
-        }
-      }           
-      stage('Archive artifacts') {
-        steps {
-          archiveArtifacts artifacts: 'test-results/**', fingerprint: true, onlyIfSuccessful: false
-          publishHTML(target: [
-            reportDir: 'test-results',
-            reportFiles: 'index.html',             // or cucumber-report.html if that’s your main
-            reportName: 'Cucumber Report',
-            keepAll: true, alwaysLinkToLastBuild: true, allowMissing: true
-          ])
-        }
-      }
+echo "-- Container listing logs:"
+find logs -maxdepth 2 -type f -print || true
+BASH
+
+      echo "-- Host listing test-results after container:"
+      find test-results -maxdepth 3 -type f -print || true
+
+      echo "-- Host listing logs after container:"
+      find logs -maxdepth 2 -type f -print || true
+    '''
+  }
+}               
+stage('Publish reports') {
+  steps {
+    archiveArtifacts artifacts: 'test-results/**, logs/**, reports/**, cucumber*.json, **/index.html, **/cucumber-report.html', fingerprint: true, onlyIfSuccessful: false
+  
+    publishHTML(target: [
+      reportDir: 'test-results',            
+      reportFiles: 'index.html,cucumber-report.html',
+      reportName: 'Cucumber Report',
+      keepAll: true, alwaysLinkToLastBuild: true, allowMissing: true
+    ])
+  }
+}      
   }
 
   post { always { echo 'Pipeline finished.' } }
