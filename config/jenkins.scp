@@ -30,14 +30,25 @@ pipeline {
     stage('Test in Playwright container') {
       steps {
         script {
-          sh 'docker pull mcr.microsoft.com/playwright:v1.56.1-jammy'
-          docker.image('mcr.microsoft.com/playwright:v1.56.1-jammy').inside('-u root:root') {
             sh '''
-              set -e
-              npm run ci:install
-              npm run pretest
-              npx cross-env DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" npm run ci:test 
-              npm run posttest || true
+              set -euxo pipefail
+
+              # pull once (optional)
+              docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
+
+              # run the job in the container, mounting your workspace
+              docker run --rm -u root:root \
+                -v "$PWD:/app" -w /app \
+                -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
+                -e TAGS="$TAGS" \
+                mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc '
+                  set -e
+                  npm ci
+                  npx playwright install --with-deps
+                  # if you added preci/postci hooks, they will run around ci:test automatically
+                  npm run ci:test
+                  npm run report || true
+                '
             '''
           }
         }
