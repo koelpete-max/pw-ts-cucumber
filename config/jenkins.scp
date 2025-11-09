@@ -8,9 +8,10 @@ pipeline {
   }
   options { timestamps() }
 
+  stages {
     stage('Preflight') {
       steps {
-        sh '''
+          sh '''
           set -euxo pipefail
           echo "whoami: $(whoami)"
           id -a
@@ -18,11 +19,11 @@ pipeline {
           ls -l /Users/freyrep/.docker/run/docker.sock || true
           stat -f '%Su %Sp' /Users/freyrep/.docker/run/docker.sock || true
 
-          # Which docker + version
+          # W hich docker + version
           command -v docker || true
           # try daemon
           docker version || true
-        '''
+          '''
       }
     }
 
