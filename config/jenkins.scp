@@ -30,7 +30,8 @@ pipeline {
     stage('Test in Playwright container') {
       steps {
         script {
-          docker.image('mcr.microsoft.com/playwright:v1.56').inside('-u root:root') {
+          sh 'docker pull mcr.microsoft.com/playwright:v1.56.1-jammy'
+          docker.image('mcr.microsoft.com/playwright:v1.56.1-jammy').inside('-u root:root') {
             sh '''
               set -e
               npm run ci:install
