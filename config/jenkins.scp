@@ -1,0 +1,58 @@
+pipeline {
+  agent any
+
+  environment {
+    DOTENV_CONFIG_PATH = 'src/helper/env/.env.prod'
+    TAGS = '@Testing'     // override in Jenkins params when needed
+  }
+
+  options { timestamps() }
+
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Test in Playwright container') {
+      steps {
+        script {
+          docker.image('mcr.microsoft.com/playwright:v1.56').inside('-u root:root') {
+            sh '''
+              set -e
+              npm ci
+              # browsers already in image, but safe if you pin versions:
+              npx playwright install --with-deps
+              echo "DOTENV_CONFIG_PATH=$DOTENV_CONFIG_PATH"
+              echo "TAGS=$TAGS"
+              npx cross-env DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" TAGS="$TAGS" npm run ci:test
+              npm run report || true
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Archive artifacts') {
+      steps {
+        archiveArtifacts artifacts: 'test-results/**', fingerprint: true, onlyIfSuccessful: false
+      }
+    }
+
+    // Optional: publish the HTML report in Jenkins UI (HTML Publisher plugin)
+    stage('Publish HTML Report') {
+      when { expression { fileExists('test-results/cucumber-report.html') } }
+      steps {
+        publishHTML(target: [
+          reportDir: 'test-results',
+          reportFiles: 'cucumber-report.html',
+          reportName: 'Cucumber Report',
+          keepAll: true, alwaysLinkToLastBuild: true, allowMissing: true
+        ])
+      }
+    }
+  }
+
+  post {
+    always { echo "Pipeline finished." }
+  }
+}
