@@ -3,8 +3,8 @@ pipeline {
   environment {
     // Add Homebrew + system paths for macOS
     PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
-    DOTENV_CONFIG_PATH = 'rc/helper/env/.env.prod'
-    TAGS = '@smoke'
+    DOTENV_CONFIG_PATH = 'src/helper/env/.env.prod'
+    TAGS = '@Testing'
   }
   options { timestamps() }
 
@@ -30,15 +30,13 @@ pipeline {
     stage('Test in Playwright container') {
       steps {
         script {
-          docker.image('mcr.microsoft.com/playwright:v1.56.1').inside('-u root:root') {
+          docker.image('mcr.microsoft.com/playwright:v1.56').inside('-u root:root') {
             sh '''
               set -e
-              npm ci
-              npx playwright install --with-deps
-              echo "DOTENV_CONFIG_PATH=$DOTENV_CONFIG_PATH"
-              echo "TAGS=$TAGS"
-              npx cross-env DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" TAGS="$TAGS" npm run ci:test
-              npm run report || true
+              npm run ci:install
+              npm run pretest
+              npx cross-env DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" npm run ci:test 
+              npm run posttest || true
             '''
           }
         }
