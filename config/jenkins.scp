@@ -15,7 +15,7 @@ pipeline {
             set -euxo pipefail
             echo "whoami: $(whoami)"
             id -a
-            ecßho "PATH=$PATH"
+            echo "PATH=$PATH"
             ls -l /Users/freyrep/.docker/run/docker.sock || true
             stat -f '%Su %Sp' /Users/freyrep/.docker/run/docker.sock || true
 
