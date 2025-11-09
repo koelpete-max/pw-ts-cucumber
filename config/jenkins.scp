@@ -8,14 +8,14 @@ pipeline {
   }
   options { timestamps() }
 
-    stages {
-      stage('Preflight') {
+  stages {
+    stage('Preflight') {
         steps {
             sh '''
             set -euxo pipefail
             echo "whoami: $(whoami)"
             id -a
-            echo "PATH=$PATH"
+            ecßho "PATH=$PATH"
             ls -l /Users/freyrep/.docker/run/docker.sock || true
             stat -f '%Su %Sp' /Users/freyrep/.docker/run/docker.sock || true
 
@@ -49,14 +49,12 @@ pipeline {
               '
           '''
         }
-      }      
-    }
-
-    stage('Archive artifacts') {
-      steps {
-        archiveArtifacts artifacts: 'test-results/**', fingerprint: true, onlyIfSuccessful: false
+      }          
+      stage('Archive artifacts') {
+        steps {
+          archiveArtifacts artifacts: 'test-results/**', fingerprint: true, onlyIfSuccessful: false
+        }
       }
-    }
   }
 
   post { always { echo 'Pipeline finished.' } }
