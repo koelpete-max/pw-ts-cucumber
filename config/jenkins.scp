@@ -81,6 +81,13 @@ pipeline {
           '''
         }
       }         
+      stage('Publish Cucumber JSON as Jenkins report') {
+        steps {
+          cucumber buildStatus: 'UNSTABLE',                     // or 'FAILURE' on failed tests
+                  fileIncludePattern: 'test-results/cucumber-report.json',
+                  trendsLimit: 10
+        }
+      }      
       stage('Archive artifacts') {
         steps {
           archiveArtifacts artifacts: 'test-results/**', fingerprint: true, onlyIfSuccessful: false
