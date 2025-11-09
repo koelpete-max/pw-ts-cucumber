@@ -1,26 +1,31 @@
 pipeline {
   agent any
-
   environment {
-    DOTENV_CONFIG_PATH = 'src/helper/env/.env.prod'
-    TAGS = '@Testing'     // override in Jenkins params when needed
+    // Add Homebrew + system paths for macOS
+    PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
+    DOTENV_CONFIG_PATH = 'rc/helper/env/.env.prod'
+    TAGS = '@smoke'
   }
-
   options { timestamps() }
 
   stages {
-    stage('Checkout') {
-      steps { checkout scm }
-    }
-
     stage('Preflight') {
       steps {
         sh '''
-          set -x
-          which docker
-          docker version
-          node -v
-          npm -v
+          set -euxo pipefail
+          echo "PATH=$PATH"
+          # show where docker would be
+          command -v docker || true
+          # show socket perms (helpful if next step fails)
+          ls -l /var/run/docker.sock || true
+
+          # Fail explicitly if docker still not found
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker CLI not found on PATH"; exit 1
+          fi
+
+          # Check daemon connectivity
+          docker version >/dev/null || { echo "Docker daemon not reachable"; exit 1; }
         '''
       }
     }
@@ -32,7 +37,6 @@ pipeline {
             sh '''
               set -e
               npm ci
-              # browsers already in image, but safe if you pin versions:
               npx playwright install --with-deps
               echo "DOTENV_CONFIG_PATH=$DOTENV_CONFIG_PATH"
               echo "TAGS=$TAGS"
@@ -49,22 +53,7 @@ pipeline {
         archiveArtifacts artifacts: 'test-results/**', fingerprint: true, onlyIfSuccessful: false
       }
     }
-
-    // Optional: publish the HTML report in Jenkins UI (HTML Publisher plugin)
-    stage('Publish HTML Report') {
-      when { expression { fileExists('test-results/cucumber-report.html') } }
-      steps {
-        publishHTML(target: [
-          reportDir: 'test-results',
-          reportFiles: 'cucumber-report.html',
-          reportName: 'Cucumber Report',
-          keepAll: true, alwaysLinkToLastBuild: true, allowMissing: true
-        ])
-      }
-    }
   }
 
-  post {
-    always { echo "Pipeline finished." }
-  }
+  post { always { echo 'Pipeline finished.' } }
 }
