@@ -31,19 +31,40 @@ pipeline {
           sh '''
             set -euxo pipefail
 
-            # pull once (optional)
+            # 1) Pull image (ok if already present)
             docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
-            # run the job in the container, mounting your workspace
+            # 2) Show what Jenkins sees BEFORE entering the container
+            echo "Host PWD: $PWD"
+            echo "Listing host workspace:"
+            ls -R | head -n 200
+
+            # 3) Run inside container with SAME mount + workdir as you used manually
             docker run --rm -u root:root \
               -v "$PWD:/app" -w /app \
-              -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
+              -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
+              -e TAGS="${TAGS-}" \
               mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc '
-                set -e
+                set -eux
+
+                echo "Container PWD: $(pwd)"
+                echo "DOTENV_CONFIG_PATH=${DOTENV_CONFIG_PATH-}"
+                echo "TAGS=${TAGS-}"
+
+                echo "Listing features in container:"
+                ls -R ./src/test/features || true
+
+                # Install deps & browsers
                 npm ci
                 npx playwright install --with-deps
-                # if you added preci/postci hooks, they will run around ci:test automatically
+
+                # Show what cucumber config resolves
+                node -e "const c=require(\\\"./config/cucumber.js\\\"); console.log(\\\"config paths=\\\", (c.default?.paths||c.paths)); console.log(\\\"config tags=\\\", (c.default?.tags||c.tags));"
+
+                # Run tests (this is what worked for you manually)
                 npm run ci:test
+
+                # Optional: run report (ensure correct path & TS)
                 npm run report || true
               '
           '''
