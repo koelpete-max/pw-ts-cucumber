@@ -26,59 +26,50 @@ pipeline {
             '''
         }
       }
-stage('Test in Playwright container') {
+ stage('Test in Playwright container') {
   steps {
     sh '''
       set -euo pipefail
 
-      echo "Host PWD: $PWD"
-      ls -la
-
       docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
-      docker run --rm -u root:root \
+      # -t allocates a TTY; heredoc keeps -i semantics
+      docker run --rm -t -u root:root \
         -v "$PWD:/app" -w /app \
         -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
         -e TAGS="${TAGS-}" \
+        -e CI=true \
         mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
 set -euo pipefail
 
-echo "-- Container PWD: $(pwd)"
-mkdir -p test-results/screenshots test-results/videos logs
+mkdir -p test-results/logs
 
-# PROBE: prove we can write into the mount
-date > test-results/.probe_container_wrote_here.txt
+echo ">>> smoke: node stdout"
+node -e "console.log('node: hello from container')"
 
-# Install + run (adjust report path if needed)
+echo ">>> running init.ts"
+npx ts-node src/helper/init.ts
+echo ">>> finished init.ts"
+
+# Install deps & browsers
 npm ci
 npx playwright install --with-deps
 
-# (Optional) one-time discovery logs
-ls -R ./src/test/features || true
-node -e "const c=require('./config/cucumber.js'); console.log('config.paths=',(c.default?.paths||c.paths)); console.log('config.tags=',(c.default?.tags||c.tags));"
+# Make cucumber output CI-friendly (no spinner)
+echo ">>> running tests"
+# stdbuf forces line-by-line flushing into tee
+stdbuf -oL -eL npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
 
-# Real run (respects TAGS/dotenv via config)
-npm run ci:test
+echo ">>> generating report"
+stdbuf -oL -eL npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
 
-# If your report is TS, ensure package.json has:
-#   "report": "npx ts-node src/helper/report.ts"
-npm run report || true
-
-echo "-- Container listing test-results:"
+echo ">>> produced files (container view)"
 find test-results -maxdepth 3 -type f -print || true
-
-echo "-- Container listing logs:"
-find logs -maxdepth 2 -type f -print || true
 BASH
-
-      echo "-- Host listing test-results after container:"
-      find test-results -maxdepth 3 -type f -print || true
-
-      echo "-- Host listing logs after container:"
-      find logs -maxdepth 2 -type f -print || true
     '''
   }
-}               
+}           
+            
 stage('Publish reports') {
   steps {
     archiveArtifacts artifacts: 'test-results/**, logs/**, reports/**, cucumber*.json, **/index.html, **/cucumber-report.html', fingerprint: true, onlyIfSuccessful: false
