@@ -27,37 +27,37 @@ pipeline {
         }
       }
 
-    stage('Test in Playwright container') {
-      steps {
-        sh '''
-          set -euo pipefail
-
-          docker run --rm -u root:root \
-            -v "$PWD:/app" -w /app \
-            -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
-            -e TAGS="${TAGS-}" \
-            -e CI=true \
-            mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
+      stage('Test in Playwright container') {
+        steps {
+          sh '''
             set -euo pipefail
 
-            mkdir -p test-results/logs
+            docker run --rm -u root:root \
+              -v "$PWD:/app" -w /app \
+              -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
+              -e TAGS="${TAGS-}" \
+              -e CI=true \
+              mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
+              set -euo pipefail
 
-            npm ci
-            npx playwright install --with-deps
+              mkdir -p test-results/logs
 
-            # run & capture full console output
-            npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
+              npm ci
+              npx playwright install --with-deps
 
-            # generate custom HTML (if you have a generator)
-            npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
+              # run & capture full console output
+              npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
 
-            # show what was produced
-            echo "-- Produced files:"
-            find test-results -maxdepth 3 -type f -print || true
-            BASH
-          '''
+              # generate custom HTML (if you have a generator)
+              npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
+
+              # show what was produced
+              echo "-- Produced files:"
+              find test-results -maxdepth 3 -type f -print || true
+              BASH
+            '''
+        }
       }
-    }
             
     stage('Publish reports') {
       steps {
