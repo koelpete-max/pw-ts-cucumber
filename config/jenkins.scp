@@ -35,7 +35,7 @@ pipeline {
             # pull once (optional) =>
             docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
-            # run the job in the container, mounting your workspace <=
+            # run the job in the container, mounting your workspace 
             docker run --rm -u root:root \
               -v "$PWD:/app" -w /app \
               -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
