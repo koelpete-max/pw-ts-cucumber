@@ -30,44 +30,55 @@ pipeline {
 stage('Test in Playwright container') {
   steps {
     sh '''
-      set -euxo pipefail
+      set -euo pipefail
 
-      # 1) Pull image (ok if already present)
+      echo "Host PWD: $PWD"
+      echo "Host workspace (top):"
+      ls -la
+      echo
+
+      # Pull once (safe if already present)
       docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
-      # 2) Show what Jenkins sees BEFORE entering the container
-      echo "Host PWD: $PWD"
-      echo "Listing host workspace:"
-      ls -R | head -n 200
-
-      # 3) Run inside container with SAME mount + workdir as you used manually
+      # Run the whole script inside container via HEREDOC to avoid quote-escaping issues
       docker run --rm -u root:root \
         -v "$PWD:/app" -w /app \
         -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
         -e TAGS="${TAGS-}" \
-        mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc '
-          set -eux
+        mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
+set -euo pipefail
 
-          echo "Container PWD: $(pwd)"
-          echo "DOTENV_CONFIG_PATH=${DOTENV_CONFIG_PATH-}"
-          echo "TAGS=${TAGS-}"
+echo "Container PWD: $(pwd)"
+echo "DOTENV_CONFIG_PATH=${DOTENV_CONFIG_PATH-}"
+echo "TAGS=${TAGS-}"
 
-          echo "Listing features in container:"
-          ls -R ./src/test/features || true
+echo "Listing features under ./src/test/features:"
+ls -R ./src/test/features || true
+echo
 
-          # Install deps & browsers
-          npm ci
-          npx playwright install --with-deps
+echo "Node/npm versions in container:"
+node -v
+npm -v
+echo
 
-          # Show what cucumber config resolves
-          node -e "const c=require(\\\"./config/cucumber.js\\\"); console.log(\\\"config paths=\\\", (c.default?.paths||c.paths)); console.log(\\\"config tags=\\\", (c.default?.tags||c.tags));"
+# Install deps & browsers
+npm ci
+npx playwright install --with-deps
 
-          # Run tests (this is what worked for you manually)
-          npm run ci:test
+# Show Cucumber config resolution
+node -e "const c=require('./config/cucumber.js'); console.log('config.paths =', (c.default?.paths||c.paths)); console.log('config.tags =', (c.default?.tags||c.tags));"
 
-          # Optional: run report (ensure correct path & TS)
-          npm run report || true
-        '
+# Prove discovery with a dry-run first (no tags) to debug patterns:
+npx cucumber-js --config=config/cucumber.js --dry-run --format progress --verbose || true
+echo
+
+# Now run your normal CI test script (respects TAGS + dotenv)
+npm run ci:test
+
+# If your report script is TS, ensure package.json uses ts-node, e.g.:
+#   "report": "npx ts-node src/helper/report.ts"
+npm run report || true
+BASH
     '''
   }
 }
