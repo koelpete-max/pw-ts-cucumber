@@ -27,61 +27,30 @@ pipeline {
         }
       }
 
-stage('Test in Playwright container') {
-  steps {
-    sh '''
-      set -euo pipefail
+      stage('Test in Playwright container') {
+        steps {
+          sh '''
+            set -euxo pipefail
 
-      echo "Host PWD: $PWD"
-      echo "Host workspace (top):"
-      ls -la
-      echo
+            # pull once (optional)
+            docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
-      # Pull once (safe if already present)
-      docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
-
-      # Run the whole script inside container via HEREDOC to avoid quote-escaping issues
-      docker run --rm -u root:root \
-        -v "$PWD:/app" -w /app \
-        -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
-        -e TAGS="${TAGS-}" \
-        mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
-set -euo pipefail
-
-echo "Container PWD: $(pwd)"
-echo "DOTENV_CONFIG_PATH=${DOTENV_CONFIG_PATH-}"
-echo "TAGS=${TAGS-}"
-
-echo "Listing features under ./src/test/features:"
-ls -R ./src/test/features || true
-echo
-
-echo "Node/npm versions in container:"
-node -v
-npm -v
-echo
-
-# Install deps & browsers
-npm ci
-npx playwright install --with-deps
-
-# Show Cucumber config resolution
-node -e "const c=require('./config/cucumber.js'); console.log('config.paths =', (c.default?.paths||c.paths)); console.log('config.tags =', (c.default?.tags||c.tags));"
-
-# Prove discovery with a dry-run first (no tags) to debug patterns:
-npx cucumber-js --config=config/cucumber.js --dry-run --format progress --verbose || true
-echo
-
-# Now run your normal CI test script (respects TAGS + dotenv)
-npm run ci:test
-
-# If your report script is TS, ensure package.json uses ts-node, e.g.:
-#   "report": "npx ts-node src/helper/report.ts"
-npm run report || true
-BASH
-    '''
-  }
-}
+            # run the job in the container, mounting your workspace
+            docker run --rm -u root:root \
+              -v "$PWD:/app" -w /app \
+              -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
+              -e TAGS="$TAGS" \
+              mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc '
+                set -e
+                npm ci
+                npx playwright install --with-deps
+                # if you added preci/postci hooks, they will run around ci:test automatically
+                npm run ci:test
+                npm run report || true
+              '
+          '''
+        }
+      }   
             
     stage('Publish reports') {
       steps {
