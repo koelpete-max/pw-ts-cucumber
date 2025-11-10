@@ -44,11 +44,13 @@ pipeline {
                 set -e
                 npm ci
                 npx playwright install --with-deps
+                # Show Cucumber config resolution
+                node -e "const c=require('./config/cucumber.js'); console.log('config.paths =', (c.default?.paths||c.paths)); console.log('config.tags =', (c.default?.tags||c.tags));"
                 # if you added preci/postci hooks, they will run around ci:test automatically
                 npm run pretest
                 npm run ci:test
                 npm run posttest || true
-              '
+            BASH
           '''
         }
       }   
