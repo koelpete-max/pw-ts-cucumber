@@ -6,6 +6,8 @@ report.generate({
   reportName: "Playwright Automation Report",
   pageTitle: "Automation Execise Site",
   displayDuration: true,
+  openReportInBrowser: false,
+  disableLog: false,
   metadata: {
     browser: {
       name: "chrome",

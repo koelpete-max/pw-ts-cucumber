@@ -40,32 +40,32 @@ pipeline {
         -e TAGS="${TAGS-}" \
         -e CI=true \
         mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
-set -euo pipefail
+      set -euo pipefail
 
-mkdir -p test-results/logs
+      mkdir -p test-results/logs
 
-echo ">>> smoke: node stdout"
-node -e "console.log('node: hello from container')"
+      echo ">>> smoke: node stdout"
+      node -e "console.log('node: hello from container')"
 
-echo ">>> running init.ts"
-npx ts-node src/helper/init.ts
-echo ">>> finished init.ts"
+      echo ">>> running init.ts"
+      npx ts-node src/helper/init.ts
+      echo ">>> finished init.ts"
 
-# Install deps & browsers
-npm ci
-npx playwright install --with-deps
+      # Install deps & browsers
+      npm ci
+      npx playwright install --with-deps
 
-# Make cucumber output CI-friendly (no spinner)
-echo ">>> running tests"
-# stdbuf forces line-by-line flushing into tee
-stdbuf -oL -eL npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
+      # Make cucumber output CI-friendly (no spinner)
+      echo ">>> running tests"
+      # stdbuf forces line-by-line flushing into tee
+      stdbuf -oL -eL npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
 
-echo ">>> generating report"
-stdbuf -oL -eL npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
+      echo ">>> generating report"
+      stdbuf -oL -eL npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
 
-echo ">>> produced files (container view)"
-find test-results -maxdepth 3 -type f -print || true
-BASH
+      echo ">>> produced files (container view)"
+      find test-results -maxdepth 3 -type f -print || true
+      BASH
     '''
   }
 }           
