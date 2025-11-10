@@ -26,62 +26,51 @@ pipeline {
             '''
         }
       }
- stage('Test in Playwright container') {
-  steps {
-    sh '''
-      set -euo pipefail
 
-      docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
+    stage('Test in Playwright container') {
+      steps {
+        sh '''
+          set -euo pipefail
 
-      # -t allocates a TTY; heredoc keeps -i semantics
-      docker run --rm -t -u root:root \
-        -v "$PWD:/app" -w /app \
-        -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
-        -e TAGS="${TAGS-}" \
-        -e CI=true \
-        mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
-      set -euo pipefail
+          docker run --rm -u root:root \
+            -v "$PWD:/app" -w /app \
+            -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
+            -e TAGS="${TAGS-}" \
+            -e CI=true \
+            mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
+            set -euo pipefail
 
-      mkdir -p test-results/logs
+            mkdir -p test-results/logs
 
-      echo ">>> smoke: node stdout"
-      node -e "console.log('node: hello from container')"
+            npm ci
+            npx playwright install --with-deps
 
-      echo ">>> running init.ts"
-      npx ts-node src/helper/init.ts
-      echo ">>> finished init.ts"
+            # run & capture full console output
+            npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
 
-      # Install deps & browsers
-      npm ci
-      npx playwright install --with-deps
+            # generate custom HTML (if you have a generator)
+            npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
 
-      # Make cucumber output CI-friendly (no spinner)
-      echo ">>> running tests"
-      # stdbuf forces line-by-line flushing into tee
-      stdbuf -oL -eL npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
-
-      echo ">>> generating report"
-      stdbuf -oL -eL npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
-
-      echo ">>> produced files (container view)"
-      find test-results -maxdepth 3 -type f -print || true
-      BASH
-    '''
-  }
-}           
+            # show what was produced
+            echo "-- Produced files:"
+            find test-results -maxdepth 3 -type f -print || true
+            BASH
+          '''
+      }
+    }
             
-stage('Publish reports') {
-  steps {
-    archiveArtifacts artifacts: 'test-results/**, logs/**, reports/**, cucumber*.json, **/index.html, **/cucumber-report.html', fingerprint: true, onlyIfSuccessful: false
-  
-    publishHTML(target: [
-      reportDir: 'test-results',            
-      reportFiles: 'index.html,cucumber-report.html',
-      reportName: 'Cucumber Report',
-      keepAll: true, alwaysLinkToLastBuild: true, allowMissing: true
-    ])
-  }
-}      
+    stage('Publish reports') {
+      steps {
+        archiveArtifacts artifacts: 'test-results/**, logs/**, reports/**, cucumber*.json, **/index.html, **/cucumber-report.html', fingerprint: true, onlyIfSuccessful: false
+      
+        publishHTML(target: [
+          reportDir: 'test-results',            
+          reportFiles: 'index.html,cucumber-report.html',
+          reportName: 'Cucumber Report',
+          keepAll: true, alwaysLinkToLastBuild: true, allowMissing: true
+        ])
+      }
+    }      
   }
 
   post { always { echo 'Pipeline finished.' } }
