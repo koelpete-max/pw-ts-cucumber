@@ -40,7 +40,7 @@ pipeline {
               -v "$PWD:/app" -w /app \
               -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
               -e TAGS="$TAGS" \
-              mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc <<'BASH'
+              mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
                 set -e
                 npm ci
                 npx playwright install --with-deps
