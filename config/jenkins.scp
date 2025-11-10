@@ -32,7 +32,7 @@ pipeline {
           sh '''
             set -euxo pipefail
 
-            # pull once (optional)
+            # pull once (optional) =>
             docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
             # run the job in the container, mounting your workspace
@@ -40,7 +40,7 @@ pipeline {
               -v "$PWD:/app" -w /app \
               -e DOTENV_CONFIG_PATH="$DOTENV_CONFIG_PATH" \
               -e TAGS="$TAGS" \
-              mcr.microsoft.com/playwright:v1.56.1-jammy bash -s '
+              mcr.microsoft.com/playwright:v1.56.1-jammy bash -ls '
                 set -e
                 npm ci
                 npx playwright install --with-deps
