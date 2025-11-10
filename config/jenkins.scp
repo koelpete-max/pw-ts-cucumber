@@ -57,7 +57,7 @@ pipeline {
             
     stage('Publish reports') {
       steps {
-        archiveArtifacts artifacts: 'test-results/**, cucumber*.json, **/index.html, **/cucumber-report.html'
+        archiveArtifacts artifacts: 'test-results/**, cucumber*.json, **/index.html, **/cucumber-report.html, **/**/*.logs, test-results/**/**/**'"
       
         publishHTML(target: [
           reportDir: 'test-results',            
