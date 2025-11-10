@@ -27,37 +27,50 @@ pipeline {
         }
       }
 
-      stage('Test in Playwright container') {
-        steps {
-          sh '''
-            set -euo pipefail
+stage('Test in Playwright container') {
+  steps {
+    sh '''
+      set -euxo pipefail
 
-            docker run --rm -u root:root \
-              -v "$PWD:/app" -w /app \
-              -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
-              -e TAGS="${TAGS-}" \
-              -e CI=true \
-              mcr.microsoft.com/playwright:v1.56.1-jammy bash -s <<'BASH'
-              set -euo pipefail
+      # 1) Pull image (ok if already present)
+      docker pull mcr.microsoft.com/playwright:v1.56.1-jammy
 
-              mkdir -p test-results/logs
+      # 2) Show what Jenkins sees BEFORE entering the container
+      echo "Host PWD: $PWD"
+      echo "Listing host workspace:"
+      ls -R | head -n 200
 
-              npm ci
-              npx playwright install --with-deps
+      # 3) Run inside container with SAME mount + workdir as you used manually
+      docker run --rm -u root:root \
+        -v "$PWD:/app" -w /app \
+        -e DOTENV_CONFIG_PATH="${DOTENV_CONFIG_PATH-}" \
+        -e TAGS="${TAGS-}" \
+        mcr.microsoft.com/playwright:v1.56.1-jammy bash -lc '
+          set -eux
 
-              # run & capture full console output
-              npm run ci:test 2>&1 | tee test-results/logs/ci-run.log
+          echo "Container PWD: $(pwd)"
+          echo "DOTENV_CONFIG_PATH=${DOTENV_CONFIG_PATH-}"
+          echo "TAGS=${TAGS-}"
 
-              # generate custom HTML (if you have a generator)
-              npm run report 2>&1 | tee -a test-results/logs/ci-run.log || true
+          echo "Listing features in container:"
+          ls -R ./src/test/features || true
 
-              # show what was produced
-              echo "-- Produced files:"
-              find test-results -maxdepth 3 -type f -print || true
-              BASH
-            '''
-        }
-      }
+          # Install deps & browsers
+          npm ci
+          npx playwright install --with-deps
+
+          # Show what cucumber config resolves
+          node -e "const c=require(\\\"./config/cucumber.js\\\"); console.log(\\\"config paths=\\\", (c.default?.paths||c.paths)); console.log(\\\"config tags=\\\", (c.default?.tags||c.tags));"
+
+          # Run tests (this is what worked for you manually)
+          npm run ci:test
+
+          # Optional: run report (ensure correct path & TS)
+          npm run report || true
+        '
+    '''
+  }
+}
             
     stage('Publish reports') {
       steps {
